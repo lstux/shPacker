@@ -25,6 +25,7 @@ The package installer will extract this data which will be evaluated in a shell.
     CONFFILES :
 ### Pre/Postinstall Pre/Postupdate
 it may be defined as variables containing a one-line script or as functions :
+
     PREINSTALL :
     POSTINSTALL :
     PREUPDATE :
