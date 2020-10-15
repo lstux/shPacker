@@ -9,8 +9,10 @@ This archive may be compressed using gzip, bzip2 or xz and may be directly extra
 
 ## Metadata part
 It consists in a simple text file, starting with the following line :
+
     #### SHPKG METADATA BEGIN ####
 and ending with
+
     #### SHPKG METADATA END ####
 This file is simply concatenated to the TAR archive to create package.
 The package installer will extract this data which will be evaluated in a shell.
