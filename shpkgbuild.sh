@@ -10,9 +10,9 @@ SHPKG_COLORS="${SHPKG_COLORS:-true}"
 
 SHPKG_DEBUG_SHELL="${SHPKG_DEBUG_SHELL:-${SHELL:-/bin/sh}}"
 
-SHPKG_DOWNLOAD_DIR="${SHPKG_DOWNLOAD_DIR:-}"
-SHPKG_DIST_DIR="${SHPKG_DIST_DIR:-}"
+SHPKG_DOWNLOAD_DIR="${SHPKG_DOWNLOAD_DIR:-/usr/src}"
 SHPKG_BUILD_DIR="${SHPKG_BUILD_DIR:-/usr/src}"
+SHPKG_DIST_DIR="${SHPKG_DIST_DIR:-$(pwd)}"
 
 
 if ${SHPKG_COLORS}; then red='\e[1;31m'; grn='\e[1;32m'; ylw='\e[1;33m'; wht='\e[1;37m'; nrm='\e[0m'
@@ -64,28 +64,31 @@ debug_step() {
     printf "${ylw}>${nrm} ${stepname} ([${grn}y${nrm}]|${red}n${nrm}|${ylw}s${nrm}|${red}q${nrm}) " >&2
     read -n1 a
     case "${a}" in
-      y|Y) return 0;;
-      n|N) return 1;;
-      s|S) [ -n "${cdir}" ] && cd "${cdir}"; ${SHPKG_DEBUG_SHELL}; continue;;
-      q|Q) message "aborting on user request"; exit 255;;
-      *)   printf "  ${red}>>${nrm} please answer with '${grn}y${nrm}' to proceed, '${red}n${nrm}' to skip, '${ylw}s${nrm}' to run a shell before continuing or '${red}q${nrm}' to quit\n" >&2
-           sleep 2;;
+      y|Y|'') [ "${a}" = "" ] || printf "\n" >&2; return 0;;
+      n|N)    printf "\n" >&2; return 1;;
+      s|S)    printf "\n" >&2; [ -n "${cdir}" ] && cd "${cdir}"; ${SHPKG_DEBUG_SHELL}; continue;;
+      q|Q)    printf "\n" >&2; message "aborting on user request"; exit 255;;
+      *)      printf "\n  ${red}>>${nrm} please answer with '${grn}y${nrm}' to proceed, '${red}n${nrm}' to skip," >&2
+              printf " '${ylw}s${nrm}' to run a shell before continuing or '${red}q${nrm}' to quit\n" >&2
+              sleep 2;;
     esac
   done
 }
 
 shpkg_fetch() {
+  [ -n "${DOWNLOAD_URL}" ] || { debug "no archive to fetch"; return 0; }
   if [ -e "${SHPKG_LOCAL_ARCHIVE}" ]; then
     info "'$(basename "${SHPKG_LOCAL_ARCHIVE}")' already downloaded"
     return 0
   fi
-  debug_step "download archive from '${DOWNLOAD_URL}'?" "${SHPKG_DOWNLOAD_DIR}"
+  debug_step "download archive from '${DOWNLOAD_URL}'?" "${SHPKG_DOWNLOAD_DIR}" || return 0
   message "downloading archive from '${DOWNLOAD_URL}'"
   curl -o "${SHPKG_LOCAL_ARCHIVE}" "${DOWNLOAD_URL}" || error "download failed (curl error $?)" 4
 }
 
 shpkg_extract() {
-  debug_step "extract '${SHPKG_LOCAL_ARCHIVE}' to '${SHPKG_BUILD_DIR}'?" "${SHPKG_DOWNLOAD_DIR}"
+  [ -n "${SHPKG_LOCAL_ARCHIVE}" ] || { debug "no archive to extract"; return 0; }
+  debug_step "extract '${SHPKG_LOCAL_ARCHIVE}' to '${SHPKG_BUILD_DIR}'?" "${SHPKG_DOWNLOAD_DIR}" || return 0
   message "extracting '$(basename "${SHPKG_LOCAL_ARCHIVE}")' to '${SHPKG_BUILD_DIR}'"
   local taropts="x"
   ${SHPKG_DEBUG} && taropts="${taropts}v"
@@ -118,13 +121,14 @@ eval $(sed -n '/^[A-Za-z_][A-Za-z0-9_]*=/p' "${BUILDSCRIPT}")
 [ -n "${PKGVERSION}" ]  || PKGVERSION="$(basename "${BUILDSCRIPT}" | sed 's/^[^\-]\+-\([^\-]\+\)-.*/\1/')"
 [ -n "${PKGREVISION}" ] || PKGREVISION="$(basename "${BUILDSCRIPT}" | sed 's/^[^\-]\+-[^\-]\+-\(.\+\)\.[a-zA-Z0-9]\+$/\1/')"
 if [ -n "${DOWNLOAD_URL}" ]; then
+  eval DOWNLOAD_URL=\"${DOWNLOAD_URL}\"
   SHPKG_LOCAL_ARCHIVE="${SHPKG_DOWNLOAD_DIR}/$(basename "${DOWNLOAD_URL}")"
   SHPKG_SOURCES_DIR="${SHPKG_BUILD_DIR}/${PKGNAME}-${PKGVERSION}"
-  shpkg_fetch
-  shpkg_extract
 else
   SHPKG_LOCAL_ARCHIVE=""
   SHPKG_SOURCES_DIR=""
 fi
 
+shpkg_fetch
+shpkg_extract
 source "${BUILDSCRIPT}"
